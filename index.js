@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -20,6 +21,7 @@ async function run() {
         await client.connect();
         const serviceCollection = client.db('doctors-portal').collection('services');
         const bookingCollection = client.db('doctors-portal').collection('booking');
+        const userCollection = client.db('doctors-portal').collection('users');
 
         //Load all service
         app.get('/services', async (req, res) => {
@@ -27,6 +29,19 @@ async function run() {
             const cursor = serviceCollection.find(query)
             const services = await cursor.toArray();
             res.send(services);
+        })
+        //update 
+        app.put('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const user = req.body;
+            const filter = { email: email };
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: user,
+            };
+            const result = await userCollection.updateOne(filter, updateDoc, options);
+            const token = jwt.sign({ email: email }, process.env.ACCESS_TOKEN, { expiresIn: '1h' })
+            res.send({ result, token });
         })
         app.get('/available', async (req, res) => {
             const date = req.query.date || 'May 16, 2022';
