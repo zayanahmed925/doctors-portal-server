@@ -50,6 +50,16 @@ async function run() {
             const users = await userCollection.find().toArray();
             res.send(users)
         })
+        //make admin role
+        app.put('/user/admin/:email', verifyJwt, async (req, res) => {
+            const email = req.params.email;
+            const filter = { email: email };
+            const updateDoc = {
+                $set: { role: 'admin' },
+            };
+            const result = await userCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        })
         //update 
         app.put('/user/:email', async (req, res) => {
             const email = req.params.email;
