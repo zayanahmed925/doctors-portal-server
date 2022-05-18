@@ -45,6 +45,11 @@ async function run() {
             const services = await cursor.toArray();
             res.send(services);
         })
+        //all users get
+        app.get('/users', verifyJwt, async (req, res) => {
+            const users = await userCollection.find().toArray();
+            res.send(users)
+        })
         //update 
         app.put('/user/:email', async (req, res) => {
             const email = req.params.email;
