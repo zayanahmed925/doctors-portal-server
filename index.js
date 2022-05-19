@@ -155,6 +155,13 @@ async function run() {
             const doctors = await doctorCollection.find().toArray();
             res.send(doctors);
         })
+        //Delete a doctor
+        app.delete('/doctor/:email', verifyJwt, verifyAdmin, async (req, res) => {
+            const email = req.params.email;
+            const filter = { email: email };
+            const result = await doctorCollection.deleteOne(filter);
+            res.send(result)
+        })
     }
 
     finally {
