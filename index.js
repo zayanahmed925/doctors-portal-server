@@ -150,6 +150,11 @@ async function run() {
             const result = await doctorCollection.insertOne(doctor);
             res.send(result)
         })
+        //get all doctor
+        app.get('/doctor', verifyJwt, verifyAdmin, async (req, res) => {
+            const doctors = await doctorCollection.find().toArray();
+            res.send(doctors);
+        })
     }
 
     finally {
