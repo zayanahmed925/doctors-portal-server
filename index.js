@@ -14,7 +14,7 @@ app.use(express.json());
 // doctor_portal
 // O4UMQ4TE65lv3ZNG
 const uri = `mongodb+srv://doctor_portal:O4UMQ4TE65lv3ZNG@cluster0.x5yvkrr.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_pass}@cluster0.x5jqn.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
+
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
 function verifyJwt(req, res, next) {
@@ -40,6 +40,7 @@ async function run() {
         const userCollection = client.db('doctors-portal').collection('users');
         const doctorCollection = client.db('doctors-portal').collection('doctor');
         const bookingCollection = client.db('doctors-portal').collection('booking');
+        // console.log(bookingCollection);
         console.log("connetct mno");
         //verify admin
         //all users get
@@ -50,6 +51,11 @@ async function run() {
             const users = await userCollection.find().toArray();
             res.send(users)
         })
+        // For Test
+        // app.get('/booking', verifyJwt, verifyAdmin, async (req, res) => {
+        //     const booked = await bookingCollection.find().toArray();
+        //     res.send(booked);
+        // })
         //verify admin
         const verifyAdmin = async (req, res, next) => {
             const requester = req.decoded.email
@@ -69,6 +75,7 @@ async function run() {
             const query = {};
             const cursor = serviceCollection.find(query).project({ name: 1 })
             const services = await cursor.toArray();
+            console.log(services);
             res.send(services);
         })
 
@@ -140,15 +147,15 @@ async function run() {
         })
 
         app.get('/available', async (req, res) => {
-            // console.log('api connect');
+            console.log('api connect');
             const date = req.query.date || 'May 16, 2022';
-            console.log(date)
+            // console.log(date)
             //Step 1: get all services
             const services = await serviceCollection.find({}).toArray();
             //step 2: get the booking of that day
             const query = { date: date };
             const bookings = await bookingCollection.find(query).toArray();
-            console.log(bookings)
+            // console.log(bookings)
             //step 3: for each service, find bookings for that service: [{},{},{},{}..]
             services?.forEach(service => {
                 //step 4: Find bookings for that service : [{},{},{}]
