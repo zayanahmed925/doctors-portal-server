@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId, Logger } = require('mongodb');
 require('dotenv').config();
 const jwt = require('jsonwebtoken');
 const app = express();
@@ -40,8 +40,10 @@ async function run() {
         const userCollection = client.db('doctors-portal').collection('users');
         const doctorCollection = client.db('doctors-portal').collection('doctor');
         const bookingCollection = client.db('doctors-portal').collection('booking');
-        // console.log(bookingCollection);
-        console.log("connetct mno");
+        const hospitalCollection = client.db('doctors-portal').collection('hospitals');
+        const departmentCollection = client.db('doctors-portal').collection('departments');
+        
+    
         //verify admin
         //all users get
         app.get('/test', (req, res) => {
@@ -60,7 +62,7 @@ async function run() {
         const verifyAdmin = async (req, res, next) => {
             const requester = req.decoded.email
             const requesterAccount = await userCollection.findOne({ email: requester })
-            console.log(requesterAccount, req.decoded.email);
+            
             if (requesterAccount.role === 'admin') {
                 next()
             }
@@ -75,8 +77,49 @@ async function run() {
             const query = {};
             const cursor = serviceCollection.find(query).project({ name: 1 })
             const services = await cursor.toArray();
-            console.log(services);
+            
             res.send(services);
+        })
+
+        // create hospital
+        app.post('/hospital', async (req, res) => {
+            const hospital = req.body
+            const result = await hospitalCollection.insertOne(hospital);
+            return res.send({ success: true, result });
+        }) 
+
+        // get all hospital
+        app.get('/hospitals', async (req, res) => {
+            const query = {};
+            const cursor = hospitalCollection.find()
+            const hospital = await cursor.toArray();
+            
+            res.send(hospital)
+        })
+
+        // create department
+        app.post('/department', async (req, res) => {
+            const department = req.body
+            const result = await departmentCollection.insertOne(department);
+            return res.send({ success: true, result });
+        }) 
+
+        // get department by hospital
+        app.get('/departments/:hospitalId', async (req, res) => {
+            const hospitalId = req.params.hospitalId;
+            const departments = await departmentCollection.find({ hospital: hospitalId }).toArray()
+
+            // const result = await departmentCollection.insertOne(department)
+            res.send(departments)
+        })
+
+        // get all department
+        app.get('/departments', async (req, res) => {
+            const query = {};
+            const cursor = departmentCollection.find()
+            const departments = await cursor.toArray();
+           
+            res.send(departments)
         })
 
         //For appointment booking 
@@ -91,6 +134,30 @@ async function run() {
             const result = await bookingCollection.insertOne(booking);
             return res.send({ success: true, result });
         })
+
+        //For user wise appointment history 
+        app.get('/booking', async (req, res) => {
+            const patientEmail = req.query.patient; // Get the value of 'patient' query parameter
+            
+            // Query MongoDB for appointments with the given patient email
+            const appointments = await bookingCollection.find({ 'patient': patientEmail }).toArray();;
+
+            // Respond with JSON data
+            // res.json(bookingData);
+            res.send(appointments)
+        })
+
+         //For all appointment history 
+         app.get('/booking/all', async (req, res) => {
+            
+            // Query MongoDB for appointments with the given patient email
+            const appointments = await bookingCollection.find().toArray();;
+
+            // Respond with JSON data
+            // res.json(bookingData);
+            res.send(appointments)
+        })
+
 
         //make admin role
         app.put('/user/admin/:email', verifyJwt, verifyAdmin, async (req, res) => {
@@ -128,16 +195,48 @@ async function run() {
         })
         //doctor data post
         app.post('/doctor', verifyJwt, verifyAdmin, async (req, res) => {
-            const doctor = req.body;
+            let doctor = req.body;
+            
+            const departmentId = ObjectId(doctor.department)
+            const cursor = await departmentCollection.findOne({ _id: departmentId })
+            const department = {
+                '_id': cursor._id.toHexString(), // Convert ObjectId to string
+                'name': cursor.name
+            }
+
+            const hospitalId = ObjectId(doctor.hospital)
+            const hospitalCursor = await hospitalCollection.findOne({ _id: hospitalId })
+            const hospital = {
+                '_id': hospitalCursor._id.toHexString(), // Convert ObjectId to string
+                'name': hospitalCursor.name,
+                'district': hospitalCursor.district,
+            }
+            doctor['department'] = department
+            doctor['hospital'] = hospital
+            
             const result = await doctorCollection.insertOne(doctor);
-            console.log(result);
             res.send(result)
         })
         //get all doctor
         app.get('/doctor', verifyJwt, verifyAdmin, async (req, res) => {
-            const doctors = await doctorCollection.find().toArray();
+            const doctors = await doctorCollection.find().toArray(); 
             res.send(doctors);
         })
+
+        //get  doctor department wise
+        app.get('/doctor/:departmentId', async (req, res) => {
+            // const departmentId = req.params.departmentId;
+            const departmentId = ObjectId(req.params.departmentId); // Replace with actual ObjectId
+
+            // Query to find doctors by departmentId
+            const doctors = await doctorCollection.find({ 'department._id': req.params.departmentId }).toArray();
+            // const doctors = await doctorCollection.find({ hospital: departmentId }).toArray();
+            console.log('doctors', doctors);
+
+            
+            res.send(doctors);
+        })
+
         //Delete a doctor
         app.delete('/doctor/:email', verifyJwt, verifyAdmin, async (req, res) => {
             const email = req.params.email;
@@ -148,7 +247,7 @@ async function run() {
 
         app.get('/available', async (req, res) => {
             console.log('api connect');
-            const date = req.query.date || 'May 16, 2022';
+            const date = req.query.date
             // console.log(date)
             //Step 1: get all services
             const services = await serviceCollection.find({}).toArray();
@@ -160,11 +259,13 @@ async function run() {
             services?.forEach(service => {
                 //step 4: Find bookings for that service : [{},{},{}]
                 const serviceBookings = bookings.filter(book => book.treatment === service.name)
+                // console.log(serviceBookings);
                 //step 5: select slot for the service bookings : ['','','']
                 const bookedSlots = serviceBookings.map(book => book.slot)
+                // console.log(bookedSlots);
                 //step 6: Select those slots that are not in bookedSlots
                 const available = service?.slots?.filter(slot => !bookedSlots.includes(slot))
-                // service?.slots = available
+                // service.slots = available
             })
             res.send(services)
 
